@@ -69,7 +69,16 @@ class BaiduShareCrawler(object):
         logger.info(reqt.url)
         content = self._send(reqt).content
         jdata = json.loads(content.replace('\'', '"'))
-        return (jdata['pubkey'], jdata['key'])
+        return jdata['pubkey'], jdata['key']
+
+    def _input_user_and_pwd(self):
+        self.username = raw_input('Please input username >')
+        self.password = raw_input('Please input password >')
+
+    def _encrypt_password(self, pubkey):
+        pubkey_inst = rsa.PublicKey.load_pkcs1_openssl_pem(pubkey)
+        password_rsaed = base64.b64encode(rsa.encrypt(self.password, pubkey_inst))
+        return password_rsaed
 
     def login(self):
         # Referred:
@@ -77,10 +86,9 @@ class BaiduShareCrawler(object):
         reqt = Request('get', 'https://pan.baidu.com', headers=self.headers)
         self._send(reqt, verify=False)
         self._get_token()
+        self._input_user_and_pwd()
         pubkey, rsakey = self._get_publickey()
-        key = rsa.PublicKey.load_pkcs1_openssl_pem(pubkey)
-        password_rsaed = base64.b64encode(rsa.encrypt(self.password, key))
-        # 'staticpage': 'http://pan.baidu.com/res/static/thirdparty/pass_v3_jump.html'
+        password_rsaed = self._encrypt_password(pubkey)
         login_data = {'staticpage': 'http://pan.baidu.com/res/static/thirdparty/pass_v3_jump.html',
                       'charset': 'UTF-8',
                       'token': self.token,
@@ -132,7 +140,7 @@ class BaiduShareCrawler(object):
 
     def get_share_list(self):
         share_list_url = 'http://yun.baidu.com/pcloud/feed/getsharelist'
-        query_params = self._create_share_list_params('1075874930', '200', '20')
+        query_params = self._create_share_list_params('1075874930', '1', '10')
         share_list_reqt = Request('get', url=share_list_url, params=query_params)
         share_list_json = self._send(share_list_reqt).json()
         logger.info(share_list_json)
